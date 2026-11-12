@@ -1,0 +1,4 @@
+# NSE equity trading holidays (YYYY-MM-DD). Add each year's list from the NSE circular.
+# Weekends are skipped automatically. If a date is missing here, the tools still see
+# "no-data" on a holiday, they just say it less clearly.
+2026-12-25   # Christmas
