@@ -4,6 +4,7 @@
   python3 trader.py doctor                      # check .env, Dhan connection, funds
   python3 trader.py instruments --refresh       # download Dhan's NSE symbol list
   python3 trader.py scan                        # every watchlist stock: waiting / triggered / expired
+  python3 trader.py scan --test                 # same, then backtest every triggered stock, best first
   python3 trader.py check RELIANCE              # one stock
   python3 trader.py watch RELIANCE              # bar by bar until it triggers
   python3 trader.py plan RELIANCE               # stop, target, quantity, PASS/BLOCK
@@ -104,6 +105,39 @@ def cmd_scan(a, cfg):
     if rows and len(hits) >= 0.4 * len(rows):
         print("Note: %d%% of the list broke out together: a market-wide move, not stock strength. "
               "Rule E skips such days." % (100 * len(hits) // len(rows)))
+    if a.test and hits:
+        test_hits(hits, now, cfg, a)
+
+
+def test_hits(hits, now, cfg, a):
+    """Time Machine on every triggered stock, best odds first."""
+    print("\nTesting %d triggered stocks (Monte Carlo %d runs + last ~60 sessions)..." % (len(hits), a.runs))
+    out = []
+    for sym in hits:
+        try:
+            sig = core.read_state("signal-%s.json" % sym)
+            plan = strategy.exit_plan(sig["price"], sig["range"], cfg, data.tick_of(sym, a.offline))
+            days = core.sessions(data.bars(sym, 90, cfg, a.offline, end=now.date()))
+            past = [days[d] for d in sorted(days) if d < now.date() and len(days[d]) >= 60]
+            et = datetime.datetime.strptime(sig["time"], "%Y-%m-%d %H:%M")
+            mc = timemachine.monte_carlo(plan, et, past, cfg, a.runs, 1)
+            hist = timemachine.history(past, cfg)[0]
+            out.append((sym, plan, mc, hist))
+        except Exception as e:
+            print("  %s: %s" % (sym, str(e)[:80]))
+        time.sleep(0 if a.offline else 0.3)
+    out.sort(key=lambda r: (r[2] or {}).get("expected_R", -9), reverse=True)
+    print("%-11s %8s %8s | %6s %6s %6s | %s" % ("stock", "entry", "stop", "tgt%", "stop%", "expR", "history (fired, netR)"))
+    for sym, plan, mc, hist in out:
+        if not mc:
+            continue
+        good = mc["expected_R"] > 0.15 and hist["net_R"] > 0
+        print("%-11s %8.2f %8.2f | %5.1f%% %5.1f%% %+6.2f | %2d trades %+6.1fR %s" % (
+            sym, plan["entry"], plan["stop"], mc["target_pct"], mc["stop_pct"], mc["expected_R"],
+            hist["fired"], hist["net_R"], "<- both tests positive" if good else ""))
+    if not any(m and m["expected_R"] > 0.15 and h["net_R"] > 0 for _, _, m, h in out):
+        print("\nNo stock passed both tests today. Not trading is a valid result.")
+    print("Note: testing many stocks and picking the best one also picks luck. Paper trade first.")
 
 
 def cmd_watch(a, cfg):
@@ -378,7 +412,9 @@ def main(argv=None):
 
     add("doctor", cmd_doctor)
     add("instruments", cmd_instruments).add_argument("--refresh", action="store_true")
-    add("scan", cmd_scan)
+    sp = add("scan", cmd_scan)
+    sp.add_argument("--test", action="store_true", help="run the Time Machine on every triggered stock")
+    sp.add_argument("--runs", type=int, default=3000)
     add("check", cmd_check, True)
     add("watch", cmd_watch, True).add_argument("--every", type=int, default=30)
     sp = add("plan", cmd_plan, True)
