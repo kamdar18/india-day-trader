@@ -22,7 +22,7 @@ from that folder. All times are IST. Market 9:15-15:30.
 
 ## Hard rules for Claude
 
-- Never type the confirmation line for the user, never pipe `yes`/`echo` into `place`,
+- Never type the confirmation line for the user, never pass `--confirm` yourself, never pipe `yes`/`echo` into `place`,
   never edit config.json to switch `"mode"` to `"live"` unless the user explicitly asks
   in this conversation.
 - Never print, read aloud or copy the contents of `.env`.

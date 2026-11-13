@@ -211,6 +211,12 @@ class TestCLI(unittest.TestCase):
             code, out = self.run_cli("place", "DEMO", "--now", when, "--offline", self.fix, "--live",
                                      typed="YES BUY %d DEMO" % order["qty"])
             self.assertIn("Paper trade recorded", out)       # --live ignored in paper mode
+            code, out = self.run_cli("place", "DEMO", "--now", when, "--offline", self.fix,
+                                     "--confirm", "YES BUY 1 DEMO")
+            self.assertIn("Nothing placed", out)             # wrong qty in --confirm is refused
+            code, out = self.run_cli("place", "DEMO", "--now", when, "--offline", self.fix,
+                                     "--confirm", "YES BUY %d DEMO" % order["qty"])
+            self.assertIn("Paper trade recorded", out)
             code, out = self.run_cli("status", "--now", "2026-11-11 15:29", "--offline", self.fix)
             self.assertIn("closed P&L today", out)
 

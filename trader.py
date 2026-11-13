@@ -10,6 +10,7 @@
   python3 trader.py backtest RELIANCE           # Time Machine: 10,000 replays + past sessions
   python3 trader.py ticket                      # the order in plain words
   python3 trader.py place RELIANCE              # paper by default; live only with --live + typed YES
+  python3 trader.py place RELIANCE --confirm "YES BUY 45 RELIANCE"   # same, in one line
   python3 trader.py status                      # paper trades / live positions, today's P&L
 
 Nothing is sent to the exchange unless config.json has "mode": "live", you add
@@ -226,8 +227,13 @@ def cmd_place(a, cfg):
     if a.live and cfg["mode"] != "live":
         print('--live ignored: config.json "mode" is "%s". Paper trade instead.' % cfg["mode"])
     expect = "YES BUY %d %s" % (o["qty"], sym)
-    print("%s order. To confirm, type exactly:  %s" % ("LIVE (real money)" if live else "PAPER", expect))
-    typed = input("> ").strip()
+    if a.confirm is not None:
+        typed = a.confirm.strip()
+        print("%s order. Confirmation given on the command line: %s" % ("LIVE (real money)" if live else "PAPER", typed))
+    else:
+        print("%s order. To confirm, type exactly:  %s" % ("LIVE (real money)" if live else "PAPER", expect))
+        print('(or run again with: --confirm "%s")' % expect)
+        typed = input("> ").strip()
     if typed != expect:
         print("Not confirmed. Nothing placed.")
         return 1
@@ -316,7 +322,9 @@ def main(argv=None):
     sp.add_argument("--seed", type=int)
     sp.add_argument("-v", "--verbose", action="store_true")
     add("ticket", cmd_ticket)
-    add("place", cmd_place, True).add_argument("--live", action="store_true")
+    sp = add("place", cmd_place, True)
+    sp.add_argument("--live", action="store_true")
+    sp.add_argument("--confirm", help='the exact line, e.g. "YES BUY 45 RELIANCE" (typed by you)')
     add("status", cmd_status)
     a = p.parse_args(argv)
     cfg = core.load_config()

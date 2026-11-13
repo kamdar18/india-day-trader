@@ -34,6 +34,7 @@ python3 trader.py watch RELIANCE       # ek stock ne bar by bar jovo
 python3 trader.py plan RELIANCE        # stop, target, qty, PASS/BLOCK
 python3 trader.py backtest RELIANCE    # Time Machine: 10,000 replay + chhella ~60 divas
 python3 trader.py place RELIANCE       # paper (ke live + typed YES)
+python3 trader.py place RELIANCE --confirm "YES BUY 45 RELIANCE"   # ek j line ma (mobile console mate)
 python3 trader.py status               # aaj na trades ane P&L
 ```
 
