@@ -24,6 +24,8 @@ DEFAULTS = {
     "no_entries_before": "09:30",
     "no_entries_after": "14:30",
     "flat_by": "15:10",              # exit everything by this time (Dhan auto square-off is ~3:15-3:20)
+    "min_over_pct": 0.0,             # trigger close must be at least this % above range high
+    "min_volume_x": 0.0,             # trigger bar volume >= X times avg opening-range bar volume
     "stop": "or-mid",                # or-mid | or-low | pct:0.8
     "target_r": 1.5,                 # target = entry + R x risk
     "min_reward_risk": 1.0,

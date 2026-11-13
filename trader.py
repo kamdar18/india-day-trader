@@ -8,6 +8,7 @@
   python3 trader.py watch RELIANCE              # bar by bar until it triggers
   python3 trader.py plan RELIANCE               # stop, target, quantity, PASS/BLOCK
   python3 trader.py backtest RELIANCE           # Time Machine: 10,000 replays + past sessions
+  python3 trader.py compare                     # old vs filtered rules on the whole watchlist, 2 halves
   python3 trader.py ticket                      # the order in plain words
   python3 trader.py place RELIANCE              # paper by default; live only with --live + typed YES
   python3 trader.py place RELIANCE --confirm "YES BUY 45 RELIANCE"   # same, in one line
@@ -100,6 +101,9 @@ def cmd_scan(a, cfg):
         time.sleep(0 if a.offline else 0.3)
     core.write_state("scan.json", {"at": now.isoformat(), "rows": rows})
     print("\n%d of %d triggered%s" % (len(hits), len(rows), (": " + ", ".join(hits)) if hits else ""))
+    if rows and len(hits) >= 0.4 * len(rows):
+        print("Note: %d%% of the list broke out together: a market-wide move, not stock strength. "
+              "Rule E skips such days." % (100 * len(hits) // len(rows)))
 
 
 def cmd_watch(a, cfg):
@@ -294,6 +298,71 @@ def cmd_status(a, cfg):
     print("closed P&L today: Rs %.0f" % sum(t.get("pnl", 0) for t in today if t["closed"]))
 
 
+VARIANTS = [
+    ("A juno rule (video jevo)", {"min_over_pct": 0, "min_volume_x": 0, "stop": "or-mid", "target_r": 1.5}, False),
+    ("B +0.2% & volume filter", {"min_over_pct": 0.2, "min_volume_x": 1.0, "stop": "or-mid", "target_r": 1.5}, False),
+    ("C B + stop range-low", {"min_over_pct": 0.2, "min_volume_x": 1.0, "stop": "or-low", "target_r": 1.5}, False),
+    ("D C + target 1R", {"min_over_pct": 0.2, "min_volume_x": 1.0, "stop": "or-low", "target_r": 1.0}, False),
+    ("E C + skip crowd days", {"min_over_pct": 0.2, "min_volume_x": 1.0, "stop": "or-low", "target_r": 1.5}, True),
+]
+
+
+def crowd_days(per_sym, cfg, share=0.4):
+    """Dates when >= share of the watchlist broke out by 9:45: a market-wide move."""
+    count = {}
+    for days in per_sym.values():
+        for d, bars in days.items():
+            t = datetime.datetime.combine(d, datetime.time(9, 45))
+            if strategy.check(bars, t, dict(cfg, min_over_pct=0, min_volume_x=0))["status"] == "triggered":
+                count[d] = count.get(d, 0) + 1
+    return {d for d, c in count.items() if c >= share * len(per_sym)}
+
+
+def cmd_compare(a, cfg):
+    now = get_now(a)
+    syms = [x.upper() for x in a.symbols] if a.symbols else core.watchlist()
+    per_sym = {}
+    for sym in syms:
+        try:
+            days = core.sessions(data.bars(sym, a.days, cfg, a.offline, end=now.date()))
+        except Exception as e:
+            print("skip %s: %s" % (sym, str(e)[:80]))
+            continue
+        per_sym[sym] = {d: b for d, b in days.items() if d < now.date() and len(b) >= 60}
+        print(".", end="", flush=True)
+        time.sleep(0 if a.offline else 0.3)
+    print()
+    dates = sorted({d for days in per_sym.values() for d in days})
+    if len(dates) < 20:
+        print("not enough history (%d sessions)" % len(dates))
+        return 1
+    mid = dates[len(dates) // 2]
+    crowd = crowd_days(per_sym, cfg)
+    print("%d stocks, %d sessions: OLD half %s..%s, NEW half %s..%s; crowd days %d" %
+          (len(per_sym), len(dates), dates[0], dates[len(dates) // 2 - 1], mid, dates[-1], len(crowd)))
+    print("net R = after ~%.2f%% charges. 1R = the money at risk on one trade.\n" % cfg["cost_pct_round_trip"])
+    print("%-26s | %-22s | %-22s" % ("rule", "OLD: trades win% netR", "NEW: trades win% netR"))
+    rows = []
+    for name, over, skip in VARIANTS:
+        c = dict(cfg, **over)
+        res = []
+        for half in (lambda d: d < mid, lambda d: d >= mid):
+            trades = []
+            for days in per_sym.values():
+                sel = [days[d] for d in sorted(days) if half(d) and not (skip and d in crowd)]
+                trades += timemachine.history(sel, c)[1]
+            n = len(trades)
+            win = 100.0 * sum(t["exit"] == "target" for t in trades) / n if n else 0
+            res.append((n, win, round(sum(t["net_R"] for t in trades), 1)))
+        rows.append((name, res))
+        print("%-26s | %5d %5.0f%% %+8.1fR | %5d %5.0f%% %+8.1fR" % (name, *res[0], *res[1]))
+    best = max(rows, key=lambda r: r[1][0][2])
+    print("\nBest on OLD half: %s -> on NEW half %+.1fR over %d trades." % (best[0], best[1][1][2], best[1][1][0]))
+    print("Only trust a rule that is also positive on the NEW half (it did not choose itself on that data).")
+    print("Even then: paper trade it for weeks before real money.")
+    core.write_state("compare.json", {"at": now.isoformat(), "rows": rows, "crowd_days": sorted(str(d) for d in crowd)})
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -321,6 +390,9 @@ def main(argv=None):
     sp.add_argument("--runs", type=int, default=10000)
     sp.add_argument("--seed", type=int)
     sp.add_argument("-v", "--verbose", action="store_true")
+    sp = add("compare", cmd_compare)
+    sp.add_argument("symbols", nargs="*")
+    sp.add_argument("--days", type=int, default=120)
     add("ticket", cmd_ticket)
     sp = add("place", cmd_place, True)
     sp.add_argument("--live", action="store_true")

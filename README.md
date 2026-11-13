@@ -36,6 +36,7 @@ python3 trader.py backtest RELIANCE    # Time Machine: 10,000 replay + chhella ~
 python3 trader.py place RELIANCE       # paper (ke live + typed YES)
 python3 trader.py place RELIANCE --confirm "YES BUY 45 RELIANCE"   # ek j line ma (mobile console mate)
 python3 trader.py status               # aaj na trades ane P&L
+python3 trader.py compare              # juno vs sudharelo rule, aakhi watchlist, 2 bhag ma
 ```
 
 ## Settings (`config.json`)
@@ -50,6 +51,8 @@ python3 trader.py status               # aaj na trades ane P&L
 | max_trades_per_day | 3 | |
 | no_entries_before / after | 09:30 / 14:30 | entry ni window |
 | flat_by | 15:10 | aa samay sudhi ma badhu bandh (Dhan auto square-off pehla) |
+| min_over_pct | 0.0 | breakout range high thi ochha ma ochha aatla % upar band thay |
+| min_volume_x | 0.0 | breakout bar nu volume opening range na average karta aatla gana |
 | stop | or-mid | `or-mid`, `or-low`, ke `pct:0.8` |
 | target_r | 1.5 | target = entry + 1.5 x risk |
 | cost_pct_round_trip | 0.06 | brokerage+STT no andaje kharch, % ma |

@@ -40,7 +40,9 @@ def check(day_bars, now, cfg):
             continue
         if close_t.time() > stop_t:
             break
-        if b["c"] > rng["high"]:
+        over = (b["c"] / rng["high"] - 1) * 100
+        vol_x = b["v"] / rng["vol"] if rng["vol"] else 0
+        if b["c"] > rng["high"] and over >= cfg.get("min_over_pct", 0) and vol_x >= cfg.get("min_volume_x", 0):
             return {"status": "triggered", "time": close_t.strftime("%Y-%m-%d %H:%M"),
                     "price": round(b["c"], 2), "range": rng_out(rng),
                     "over_pct": round((b["c"] / rng["high"] - 1) * 100, 2),

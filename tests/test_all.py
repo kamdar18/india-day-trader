@@ -92,6 +92,11 @@ class TestORB(unittest.TestCase):
         self.assertEqual(s["price"], 102.4)
         self.assertEqual(s["range"], {"high": 102, "low": 99, "mid": 100.5})
 
+    def test_breakout_size_filter(self):
+        t = datetime.datetime(2026, 11, 11, 9, 41)
+        self.assertEqual(strategy.check(ORB_DAY, t, dict(CFG, min_over_pct=0.2))["status"], "triggered")  # +0.39%
+        self.assertEqual(strategy.check(ORB_DAY, t, dict(CFG, min_over_pct=0.5))["status"], "waiting")
+
     def test_expired(self):
         cfg = dict(CFG, no_entries_after="09:35")
         s = strategy.check(ORB_DAY, datetime.datetime(2026, 11, 11, 10, 0), cfg)

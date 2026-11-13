@@ -87,15 +87,17 @@ def history(history_days, cfg):
         after = [b for b in day if b["t"] >= et]
         how, px, _ = strategy.simulate_exit(after, plan, cfg)
         r = (px - plan["entry"]) / plan["risk_per_share"] if px is not None else 0
+        cost_r = plan["entry"] * cfg["cost_pct_round_trip"] / 100 / plan["risk_per_share"]
         trades.append({"date": d.isoformat(), "entry": plan["entry"], "exit": how,
-                       "exit_price": px, "R": round(r, 2)})
+                       "exit_price": px, "R": round(r, 2), "net_R": round(r - cost_r, 2)})
     n = len(trades)
     summary = {"sessions": len(history_days), "fired": n,
                "target": sum(t["exit"] == "target" for t in trades),
                "stop": sum(t["exit"] == "stop" for t in trades),
                "flat": sum(t["exit"] == "flat" for t in trades),
                "total_R": round(sum(t["R"] for t in trades), 2),
-               "avg_R": round(sum(t["R"] for t in trades) / n, 3) if n else None}
+               "avg_R": round(sum(t["R"] for t in trades) / n, 3) if n else None,
+               "net_R": round(sum(t["net_R"] for t in trades), 2)}
     return summary, trades
 
 
